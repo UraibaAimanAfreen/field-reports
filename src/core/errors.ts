@@ -10,9 +10,12 @@ export class OfflineError extends Error {
 
 /** Thrown when an upload made no progress for too long. */
 export class StalledError extends Error {
-  constructor(public readonly idleMs: number) {
+  readonly idleMs: number;
+
+  constructor(idleMs: number) {
     super(`no progress for ${idleMs}ms`);
     this.name = 'StalledError';
+    this.idleMs = idleMs;
   }
 }
 
@@ -25,13 +28,14 @@ export class AbortedError extends Error {
 }
 
 export class HttpError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly code: string | undefined,
-    message: string,
-  ) {
+  readonly status: number;
+  readonly code: string | undefined;
+
+  constructor(status: number, code: string | undefined, message: string) {
     super(message);
     this.name = 'HttpError';
+    this.status = status;
+    this.code = code;
   }
 }
 

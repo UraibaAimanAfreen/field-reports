@@ -5,9 +5,13 @@
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",
-    "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "lint": "eslint .",
+    "test": "jest",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.harness.json --noEmit",
+    "verify": "npm run typecheck && npm run lint && npm test",
+    "server": "npm --prefix server start",
+    "harness": "tsc -p tsconfig.harness.json && node dist-harness/headless/run.js"
   },
   "dependencies": {
     "@bam.tech/react-native-image-resizer": "^3.0.11",
@@ -36,6 +40,7 @@
     "@react-native/metro-config": "0.88.1",
     "@react-native/typescript-config": "0.88.1",
     "@types/jest": "^29.5.13",
+    "@types/node": "^24.19.2",
     "@types/react": "^19.2.0",
     "@types/react-test-renderer": "^19.1.0",
     "eslint": "^8.19.0",

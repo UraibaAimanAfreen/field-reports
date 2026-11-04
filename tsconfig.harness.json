@@ -1,0 +1,20 @@
+{
+  "//": "The headless harness runs the real queue in plain Node. Separate config because it resolves Node's globals (fetch, FormData, Blob) rather than React Native's.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "erasableSyntaxOnly": true,
+    "rootDir": "src",
+    "outDir": "dist-harness",
+    "noEmit": false
+  },
+  "include": ["src/core/**/*.ts", "src/headless/**/*.ts"],
+  "exclude": ["src/core/__tests__/**"]
+}
