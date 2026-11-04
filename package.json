@@ -13,7 +13,7 @@
     "server": "npm --prefix server start",
     "harness": "tsc -p tsconfig.harness.json && node dist-harness/headless/run.js",
     "bundle:android": "react-native bundle --platform android --dev true --entry-file index.js --bundle-output android/app/src/main/assets/index.android.bundle --assets-dest android/app/src/main/res",
-    "android:bundled": "npm run bundle:android && cd android && ./gradlew assembleDebug"
+    "android:bundled": "npm run bundle:android && cd android && ./gradlew assembleDebug -PdevServer=false"
   },
   "dependencies": {
     "@bam.tech/react-native-image-resizer": "^3.0.11",

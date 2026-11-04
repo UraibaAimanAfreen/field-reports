@@ -84,6 +84,13 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+
+        // Lets a debug build run straight from the JS packaged in the APK
+        // instead of waiting on Metro:  ./gradlew assembleDebug -PdevServer=false
+        // (or `npm run android:bundled`). Useful when the packager connection
+        // is unreliable, and for recording a demo that should not depend on it.
+        buildConfigField "boolean", "USE_DEV_SERVER",
+            (project.findProperty("devServer") ?: "true").toString()
     }
     signingConfigs {
         debug {

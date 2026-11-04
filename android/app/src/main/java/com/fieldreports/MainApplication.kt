@@ -17,6 +17,10 @@ class MainApplication : Application(), ReactApplication {
           // Packages that cannot be autolinked yet can be added manually here, for example:
           // add(MyReactNativePackage())
         },
+      // Normally BuildConfig.DEBUG. The extra flag lets a debug build skip the
+      // dev server and boot from the JS packaged in the APK -- see the
+      // USE_DEV_SERVER buildConfigField and `npm run android:bundled`.
+      useDevSupport = BuildConfig.DEBUG && BuildConfig.USE_DEV_SERVER,
     )
   }
 
