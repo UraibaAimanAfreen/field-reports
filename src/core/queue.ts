@@ -252,6 +252,17 @@ export class UploadQueue {
     return report;
   }
 
+  /**
+   * Nudge the worker to re-evaluate now.
+   *
+   * Used when the app returns to the foreground: Android may have frozen the
+   * JS thread mid-wait, and the user reopening the app is the clearest
+   * possible signal that they want their work to move.
+   */
+  poke(): void {
+    this.#wakeNow();
+  }
+
   /** User pressed "try again" on a blocked or parked report. */
   async retryNow(reportId: string): Promise<void> {
     await this.#mutate(reportId, report => {

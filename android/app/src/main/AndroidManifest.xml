@@ -1,6 +1,22 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- NetInfo: lets the queue park while offline and wake on reconnect
+         instead of retrying into a void. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Android 13+ uses the system photo picker, which needs no permission.
+         Only older versions need read access, so it stops at API 32. -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- The app is still useful on a device with no camera: photos can come
+         from the gallery. Do not let the Play Store filter it out. -->
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
 
     <application
       android:name=".MainApplication"
