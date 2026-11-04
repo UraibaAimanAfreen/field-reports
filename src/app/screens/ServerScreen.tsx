@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatBytes } from '../../core/selectors';
 import type { ServerReport } from '../../core/types';
 import { useQueue } from '../QueueProvider';
-import { Body, Card, EmptyState, SectionLabel } from '../components/ui';
+import { Body, Card, EmptyState } from '../components/ui';
 import { radius, spacing, usePalette } from '../theme';
 
 type LoadState = { status: 'loading' } | { status: 'ready'; reports: ServerReport[] } | { status: 'error'; message: string };
@@ -107,7 +107,11 @@ export function ServerScreen() {
                 </View>
               ))}
             </View>
-            <SectionLabel>{item.id}</SectionLabel>
+            {/* Not SectionLabel: that uppercases, and an id that does not
+                match what the logs show is worse than no id at all. */}
+            <Text selectable style={[styles.id, { color: palette.textFaint }]}>
+              {item.id}
+            </Text>
           </Card>
         )}
       />
@@ -129,4 +133,5 @@ const styles = StyleSheet.create({
   thumbs: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },
   thumb: { width: 72, height: 72, borderRadius: radius.sm, borderWidth: StyleSheet.hairlineWidth },
   size: { fontSize: 10.5, textAlign: 'center', marginTop: 2 },
+  id: { fontSize: 11, fontFamily: 'monospace' },
 });
