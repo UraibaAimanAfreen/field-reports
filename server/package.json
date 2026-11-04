@@ -1,0 +1,16 @@
+{
+  "name": "field-reports-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Fail-on-demand upload backend for the Field Reports technical test.",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "express": "5.3.0",
+    "multer": "2.5.0"
+  },
+  "engines": { "node": ">=22" }
+}

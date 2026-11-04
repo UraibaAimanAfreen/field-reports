@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Field Reports — Backend Control</title>
+<style>
+  :root{
+    --ink:#16212C; --soft:#41505E; --faint:#7A8894;
+    --paper:#F1F4F3; --card:#FBFCFC; --line:#D3DBD8; --line-soft:#E3E8E6;
+    --blue:#2E7BD6; --green:#2F9160; --amber:#E08A34; --red:#C4453D;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 22px 60px}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+  .sub{color:var(--faint);font-size:13.5px;margin:0 0 22px}
+  .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
+  @media(max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .card h2{font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);
+    margin:0 0 12px;font-family:var(--mono);font-weight:600}
+  .modes{display:flex;flex-wrap:wrap;gap:7px}
+  button{font:inherit;cursor:pointer;border-radius:9px;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);padding:8px 13px;transition:.12s}
+  button:hover{border-color:var(--faint)}
+  button.on{background:var(--ink);color:var(--card);border-color:var(--ink)}
+  button.danger{border-color:#eccbc9;color:var(--red)}
+  button.danger:hover{background:var(--red);color:#fff;border-color:var(--red)}
+  .mode-desc{margin-top:11px;font-size:13px;color:var(--soft);min-height:38px}
+  .row{display:flex;align-items:center;gap:12px;margin:11px 0}
+  .row label{font-family:var(--mono);font-size:11.5px;letter-spacing:.07em;
+    text-transform:uppercase;color:var(--faint);width:112px;flex:none}
+  .row input[type=range]{flex:1;accent-color:var(--blue)}
+  .row .val{font-family:var(--mono);font-size:12.5px;width:66px;text-align:right;color:var(--ink)}
+  .stats{display:flex;gap:22px;flex-wrap:wrap;font-family:var(--mono);font-size:12.5px;color:var(--soft)}
+  .stats b{display:block;font-size:19px;color:var(--ink);font-weight:600}
+  #log{font-family:var(--mono);font-size:11.5px;line-height:1.75;max-height:330px;
+    overflow:auto;background:#16212C;color:#D8E0E4;border-radius:10px;padding:12px 13px;margin:0}
+  #log div{white-space:pre-wrap;word-break:break-word}
+  .t{color:#6B7A86}
+  .ok{color:#8BD6A9} .warn{color:#F0B87A} .bad{color:#F09A94} .dup{color:#8FC3F2}
+  .reports{margin:0;padding:0;list-style:none;max-height:330px;overflow:auto}
+  .reports li{border-top:1px solid var(--line-soft);padding:11px 0;display:flex;gap:11px}
+  .reports li:first-child{border-top:0}
+  .thumbs{display:flex;gap:5px;flex:none}
+  .thumbs img{width:44px;height:44px;object-fit:cover;border-radius:7px;border:1px solid var(--line)}
+  .rmeta{min-width:0}
+  .rmeta .d{font-size:14px;margin-bottom:2px;overflow-wrap:anywhere}
+  .rmeta .m{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .empty{color:var(--faint);font-size:13.5px;padding:8px 0}
+  .pill{display:inline-block;font-family:var(--mono);font-size:11px;padding:3px 9px;
+    border-radius:99px;background:var(--line-soft);color:var(--soft)}
+  .pill.live{background:#E4F3EB;color:var(--green)}
+  .bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div>
+      <h1>Field Reports — backend control</h1>
+      <p class="sub">Break the server on demand. Chaos applies to <code>/v1/*</code> only, never to this panel.</p>
+    </div>
+    <span class="pill" id="health">connecting…</span>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Failure mode</h2>
+      <div class="modes" id="modes"></div>
+      <div class="mode-desc" id="modeDesc"></div>
+
+      <div class="row">
+        <label>Latency</label>
+        <input type="range" id="latencyMs" min="0" max="10000" step="100" />
+        <span class="val" id="latencyMsVal"></span>
+      </div>
+      <div class="row">
+        <label>Link speed</label>
+        <input type="range" id="linkKbps" min="32" max="2048" step="32" />
+        <span class="val" id="linkKbpsVal"></span>
+      </div>
+      <div class="row">
+        <label>Drop after</label>
+        <input type="range" id="dropAfterMs" min="0" max="5000" step="50" />
+        <span class="val" id="dropAfterMsVal"></span>
+      </div>
+      <div class="row">
+        <label>Applies to</label>
+        <div class="actions">
+          <button data-affect="writes">Writes only</button>
+          <button data-affect="all">All requests</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Server storage</h2>
+      <div class="stats">
+        <div>reports<b id="sReports">0</b></div>
+        <div>images<b id="sImages">0</b></div>
+        <div>stored<b id="sBytes">0 B</b></div>
+      </div>
+      <div class="actions" style="margin-top:16px">
+        <button class="danger" id="wipe">Wipe server storage</button>
+        <button id="clearLog">Clear log</button>
+      </div>
+      <h2 style="margin-top:22px">Reports on server</h2>
+      <ul class="reports" id="reports"><li class="empty">Nothing received yet.</li></ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2>Live request log</h2>
+    <pre id="log"><div class="t">waiting…</div></pre>
+  </div>
+</div>
+
+<script>
+const DESCRIPTIONS = {
+  off:      'Normal operation. Everything succeeds.',
+  slow:     'Throttles the link to the configured speed. The app should keep making progress and not give up. For a faithful 2G test use the emulator instead: adb emu network speed gsm.',
+  error500: 'Returns 500 after reading the body. Transient: the app should retry with backoff.',
+  refuse:   'Returns 400 after reading the body. Permanent: the app must stop retrying and say why.',
+  hang:     'Stores the upload, then never answers. The lost-response case — the app retries, and the retry must be de-duplicated rather than stored twice.',
+  drop:     'Destroys the connection before committing anything. The app should see a network error and retry from scratch, with no partial state left behind.',
+  flaky:    'Random mix of drop / 500 / slow / success per request. For long unattended runs.',
+};
+let state = null;
+
+const fmtBytes = n => n < 1024 ? n + ' B'
+  : n < 1048576 ? (n/1024).toFixed(0) + ' KB'
+  : (n/1048576).toFixed(1) + ' MB';
+
+async function post(path, body) {
+  const r = await fetch(path, {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body)});
+  return r.json();
+}
+
+function renderModes() {
+  const host = document.getElementById('modes');
+  host.innerHTML = '';
+  for (const mode of Object.keys(DESCRIPTIONS)) {
+    const b = document.createElement('button');
+    b.textContent = mode;
+    b.className = state && state.mode === mode ? 'on' : '';
+    b.onclick = async () => { ({state} = await post('/chaos', {mode})); renderAll(); };
+    b.onmouseenter = () => document.getElementById('modeDesc').textContent = DESCRIPTIONS[mode];
+    b.onmouseleave = () => document.getElementById('modeDesc').textContent = DESCRIPTIONS[state.mode];
+    host.appendChild(b);
+  }
+  document.getElementById('modeDesc').textContent = DESCRIPTIONS[state.mode];
+  document.querySelectorAll('[data-affect]').forEach(b => {
+    b.className = state.affect === b.dataset.affect ? 'on' : '';
+    b.onclick = async () => { ({state} = await post('/chaos', {affect: b.dataset.affect})); renderAll(); };
+  });
+}
+
+function renderSliders() {
+  for (const key of ['latencyMs','linkKbps','dropAfterMs']) {
+    const el = document.getElementById(key);
+    if (document.activeElement !== el) el.value = state[key];
+    document.getElementById(key+'Val').textContent =
+      key === 'linkKbps' ? state[key] + ' kbps' : state[key] + ' ms';
+  }
+}
+
+function renderAll(){ renderModes(); renderSliders(); }
+
+for (const key of ['latencyMs','linkKbps','dropAfterMs']) {
+  const el = document.getElementById(key);
+  el.oninput = () => document.getElementById(key+'Val').textContent =
+    key === 'linkKbps' ? el.value + ' kbps' : el.value + ' ms';
+  el.onchange = async () => { ({state} = await post('/chaos', {[key]: Number(el.value)})); renderAll(); };
+}
+
+document.getElementById('wipe').onclick = async () => {
+  if (!confirm('Delete every report and image on the server?')) return;
+  await fetch('/v1/reports', {method:'DELETE'});
+  poll();
+};
+document.getElementById('clearLog').onclick = async () => {
+  await fetch('/chaos/log', {method:'DELETE'});
+  poll();
+};
+
+const cls = e => e.kind === 'duplicate' ? 'dup'
+  : e.kind === 'drop' || e.kind === 'aborted' || e.status >= 500 ? 'bad'
+  : e.kind === 'hang' || e.status >= 400 ? 'warn'
+  : e.kind === 'request' ? 'ok' : 't';
+
+async function poll() {
+  try {
+    const [logRes, repRes] = await Promise.all([
+      fetch('/chaos/log').then(r => r.json()),
+      fetch('/chaos').then(() => fetch('/v1/reports').then(r => r.json())).catch(() => ({reports:[]})),
+    ]);
+    state = logRes.state;
+    renderAll();
+
+    const h = document.getElementById('health');
+    h.textContent = 'listening · ' + state.mode;
+    h.className = 'pill live';
+
+    document.getElementById('sReports').textContent = logRes.stats.reports;
+    document.getElementById('sImages').textContent = logRes.stats.images;
+    document.getElementById('sBytes').textContent = fmtBytes(logRes.stats.bytes);
+
+    document.getElementById('log').innerHTML = logRes.log.length
+      ? logRes.log.map(e =>
+          `<div><span class="t">${e.at.slice(11,23)}</span> <span class="${cls(e)}">${e.message
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span></div>`).join('')
+      : '<div class="t">no requests yet</div>';
+
+    const reports = repRes.reports || [];
+    document.getElementById('reports').innerHTML = reports.length
+      ? reports.map(r => `<li>
+          <div class="thumbs">${r.images.slice(0,3).map(i => `<img src="${i.url}" alt="" />`).join('')}</div>
+          <div class="rmeta">
+            <div class="d">${r.description.replace(/&/g,'&amp;').replace(/</g,'&lt;').slice(0,110)}</div>
+            <div class="m">${r.images.length} image(s) · ${fmtBytes(r.images.reduce((s,i)=>s+i.bytes,0))} · ${r.receivedAt.slice(11,19)} · ${r.id.slice(0,8)}</div>
+          </div></li>`).join('')
+      : '<li class="empty">Nothing received yet.</li>';
+  } catch {
+    const h = document.getElementById('health');
+    h.textContent = 'server unreachable';
+    h.className = 'pill';
+  }
+}
+poll();
+setInterval(poll, 1000);
+</script>
+</body>
+</html>
