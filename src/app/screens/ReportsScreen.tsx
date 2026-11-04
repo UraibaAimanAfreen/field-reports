@@ -45,11 +45,14 @@ export function ReportsScreen({ navigation }: { navigation: { navigate: (screen:
         renderItem={renderItem}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 96 }]}
         ListHeaderComponent={
-          // With no reports the empty state says everything the header would,
-          // so showing both just repeats the same sentence twice.
-          reports.length === 0 ? undefined : (
           <View>
-            <Text style={[styles.headline, { color: palette.text }]}>{summary.headline}</Text>
+            {/* With no reports the empty state already says so, and printing
+                the same sentence twice reads like a bug. The connection bar
+                stays either way -- knowing you are offline is useful before
+                you start writing, not only after. */}
+            {reports.length > 0 ? (
+              <Text style={[styles.headline, { color: palette.text }]}>{summary.headline}</Text>
+            ) : null}
             {summary.blocked > 0 && summary.outstanding > 0 ? (
               <Text style={[styles.subhead, { color: palette.bad }]}>
                 {summary.blocked} also need{summary.blocked === 1 ? 's' : ''} your attention
@@ -59,7 +62,6 @@ export function ReportsScreen({ navigation }: { navigation: { navigate: (screen:
               <ConnectionBar online={online} outstanding={summary.outstanding} />
             </View>
           </View>
-          )
         }
         ListEmptyComponent={
           !ready ? undefined : (

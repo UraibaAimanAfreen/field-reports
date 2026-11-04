@@ -155,7 +155,9 @@ export function summarise(reports: ReportRecord[], online: boolean): QueueSummar
   let headline: string;
   if (reports.length === 0) headline = 'No reports yet';
   else if (blocked > 0 && outstanding === 0) headline = `${blocked} report${plural(blocked)} need${blocked === 1 ? 's' : ''} you`;
-  else if (outstanding === 0) headline = `All ${delivered} report${plural(delivered)} on the server`;
+  else if (outstanding === 0) {
+    headline = delivered === 1 ? 'Your report is on the server' : `All ${delivered} reports on the server`;
+  }
   else if (!online) headline = `${outstanding} saved on this device · offline`;
   else headline = `${outstanding} report${plural(outstanding)} on the way`;
 

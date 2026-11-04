@@ -149,6 +149,10 @@ describe('summary line', () => {
     expect(summarise([report('delivered'), report('delivered')], true).headline).toBe('All 2 reports on the server');
   });
 
+  it('does not say "All 1 report"', () => {
+    expect(summarise([report('delivered')], true).headline).toBe('Your report is on the server');
+  });
+
   it('surfaces blocked work above silence', () => {
     expect(summarise([report('blocked')], true).headline).toBe('1 report needs you');
   });
