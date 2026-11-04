@@ -16,6 +16,14 @@ npm run android     # terminal 3 — build and install (emulator or device)
 Verified on an Android 16 emulator (Pixel 9 Pro XL, API 37) with React Native
 0.88.1, JDK 17, Node 24.
 
+If the packager connection is unreliable — on this emulator it repeatedly
+stalled part-way through the 5 MB dev bundle — build one that does not need it:
+
+```bash
+npm run android:bundled   # packages the JS into the APK, skips the dev server
+adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+```
+
 ---
 
 ## The short version
@@ -70,8 +78,18 @@ adb emu network speed gsm      # ~14 kbps up. also: edge, umts, full
 adb emu network delay gprs
 ```
 
-Airplane mode: `adb emu power ac off` then the quick settings tile, or just
-toggle it in the emulator UI.
+**Airplane mode on an emulator does not mean offline.** The emulator leaves
+Wi-Fi enabled underneath it, so the app stays connected and uploads keep
+working — which looks like the offline test passing when it never ran. Cut the
+network properly:
+
+```bash
+adb shell svc wifi disable     # genuinely offline
+adb shell svc wifi enable      # back
+```
+
+Check it took: `adb shell 'printf "GET /v1/health HTTP/1.0\r\n\r\n" | nc -w 4 10.0.2.2 4000'`
+should say *Network is unreachable*.
 
 ### The main scenario, step by step
 
@@ -322,5 +340,14 @@ yet. That felt like the right line to draw.
   `ACCESS_LOCAL_NETWORK` so it can reach Metro; it is not something this app
   requests. Allow it, or use `adb reverse tcp:8081 tcp:8081` and
   `adb reverse tcp:4000 tcp:4000`, which is exempt.
+- **What I verified, and how.** The delivery guarantees are covered by 54
+  tests and by the headless harness against the real backend, including a
+  gauntlet run that de-duplicated a genuine lost response. On the device I
+  verified the build, the full compose-to-delivered path (a 21.2 MB photo
+  arriving as 1.59 MB, three images, one report, confirmed server-side), the
+  offline state, and progressive photo staging. The emulator was too slow to
+  drive the longer offline/force-quit/reconnect sequence reliably by script;
+  that path is covered by tests and the harness rather than by a recorded
+  device run, and it is the sequence the screen recording walks through.
 - **AI assistance** was used while building this, as the brief allows. Every
   decision above is one I made and can defend, and every line is one I own.
