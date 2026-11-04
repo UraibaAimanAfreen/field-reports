@@ -10,7 +10,10 @@ import { Chaos, MODES, sleep, stallSocket, transferMs } from './chaos.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = Number(process.env.PORT || 4000);
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', '.data');
+// path.resolve, not path.join: join leaves the '..' segment in the string,
+// and Express 5's sendFile rejects any path containing '..' as traversal --
+// which showed up as every image 404ing while sitting right there on disk.
+const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, '..', '.data'));
 
 /**
  * The same ceiling the app enforces, restated here on purpose.
@@ -290,7 +293,11 @@ app.get('/v1/images/:id', (req, res) => {
   const record = store.getUpload(req.params.id);
   res.setHeader('Content-Type', record.mime || 'application/octet-stream');
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-  res.sendFile(filePath);
+  // dotfiles:'allow' is required because the storage directory is `.data`.
+  // send() defaults to dotfiles:'ignore', which treats ANY path component
+  // beginning with a dot as missing -- so every image 404'd while sitting
+  // right there on disk.
+  res.sendFile(filePath, { dotfiles: 'allow' });
 });
 
 app.delete('/v1/reports', async (req, res) => {
