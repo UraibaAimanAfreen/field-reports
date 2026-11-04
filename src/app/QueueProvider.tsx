@@ -19,8 +19,13 @@ interface QueueContextValue {
   snapshot: QueueSnapshot;
   settings: Settings;
   ready: boolean;
-  /** Copy a freshly picked photo somewhere the OS will not reclaim it. */
+  /**
+   * Copy a freshly picked photo somewhere the OS will not reclaim it.
+   * Fast: a rename, not a re-encode, so the composer can show it immediately.
+   */
   stageImage: (draftId: string, picked: DraftImage) => Promise<ImageRecord>;
+  /** Build the small display copy. Slow enough to be worth doing separately. */
+  makeThumbnail: (draftId: string, image: ImageRecord) => Promise<string | null>;
   updateSettings: (patch: Partial<Settings>) => Promise<void>;
 }
 
@@ -103,15 +108,19 @@ export function QueueProvider({ children }: { children: React.ReactNode }) {
         await adoptFile(picked.uri, target);
 
         const stat = await FileSystem.stat(target);
-        const source = { uri: toFileUri(target), bytes: stat.size, width: picked.width, height: picked.height };
-        const record = UploadQueue.rawImage(source, imageId);
-
-        // Make the small copy now, so neither the composer nor the list ever
-        // decodes an 18 MB bitmap to draw a 56 px square. The queue will make
-        // one too if this fails -- it is an optimisation, not a dependency.
-        record.thumbUri = (await imaging.thumbnail(draftId, imageId, source)) ?? undefined;
-        return record;
+        return UploadQueue.rawImage(
+          { uri: toFileUri(target), bytes: stat.size, width: picked.width, height: picked.height },
+          imageId,
+        );
       },
+
+      // Separate from staging because it is the slow half: decoding a 21 MB
+      // photo and re-encoding a 320 px copy takes seconds on real hardware.
+      // Doing it here rather than inside stageImage lets the composer show the
+      // photo the instant its bytes are safe, and fill the picture in after.
+      // The queue makes its own thumbnail if this never happens -- it is an
+      // optimisation, not a dependency.
+      makeThumbnail: (draftId, image) => imaging.thumbnail(draftId, image.id, image.source),
     }),
     [queue, transport, imaging, snapshot, current, ready],
   );

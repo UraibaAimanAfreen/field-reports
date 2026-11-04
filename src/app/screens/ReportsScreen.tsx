@@ -45,6 +45,9 @@ export function ReportsScreen({ navigation }: { navigation: { navigate: (screen:
         renderItem={renderItem}
         contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 96 }]}
         ListHeaderComponent={
+          // With no reports the empty state says everything the header would,
+          // so showing both just repeats the same sentence twice.
+          reports.length === 0 ? undefined : (
           <View>
             <Text style={[styles.headline, { color: palette.text }]}>{summary.headline}</Text>
             {summary.blocked > 0 && summary.outstanding > 0 ? (
@@ -56,6 +59,7 @@ export function ReportsScreen({ navigation }: { navigation: { navigate: (screen:
               <ConnectionBar online={online} outstanding={summary.outstanding} />
             </View>
           </View>
+          )
         }
         ListEmptyComponent={
           !ready ? undefined : (

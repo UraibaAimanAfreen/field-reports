@@ -18,21 +18,22 @@ import { UploadQueue } from '../../core/queue';
 import { formatBytes } from '../../core/selectors';
 import type { DraftImage, ImageRecord } from '../../core/types';
 import { draftStore } from '../../platform/draftStore';
+import { logger } from '../../platform/logger';
 import { useQueue } from '../QueueProvider';
 import { Body, Button, Card, Row, SectionLabel } from '../components/ui';
 import { radius, spacing, usePalette } from '../theme';
-import { usePhotoPicker } from '../usePhotoPicker';
+import { usePhotoPicker, type PickerOutcome } from '../usePhotoPicker';
 
 export function ComposeScreen({ navigation }: { navigation: { goBack: () => void } }) {
   const palette = usePalette();
   const insets = useSafeAreaInsets();
-  const { queue, stageImage } = useQueue();
+  const { queue, stageImage, makeThumbnail } = useQueue();
   const { takePhoto, pickFromLibrary, cameraBlocked, libraryBlocked, openSystemSettings } = usePhotoPicker();
 
   const [draftId, setDraftId] = useState(() => UploadQueue.newDraftId());
   const [description, setDescription] = useState('');
   const [images, setImages] = useState<ImageRecord[]>([]);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<{ done: number; total: number } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,37 +76,83 @@ export function ComposeScreen({ navigation }: { navigation: { goBack: () => void
 
   const remaining = LIMITS.maxImages - images.length;
 
+  /**
+   * Add photos one at a time, showing each as soon as its bytes are safe.
+   *
+   * Staging a 21 MB photo and building its thumbnail takes seconds on real
+   * hardware. Doing the whole batch before touching state meant picking three
+   * photos left the screen looking dead for the better part of ten seconds,
+   * with nothing to say it was working -- which is the stuck-spinner failure
+   * the brief calls the most common way this test is failed, just without the
+   * spinner.
+   *
+   * So: adopt the file (a rename, near-instant), show it immediately with its
+   * real size, and let the thumbnail arrive afterwards.
+   */
   const addImages = useCallback(
     async (picked: DraftImage[]) => {
       if (picked.length === 0) return;
-      setAdding(true);
       setError(null);
+
+      const accepted = picked.slice(0, LIMITS.maxImages - images.length);
+      setAdding({ done: 0, total: accepted.length });
+
+      let running = images;
       try {
-        const accepted = picked.slice(0, LIMITS.maxImages - images.length);
-        const staged: ImageRecord[] = [];
-        for (const photo of accepted) {
-          staged.push(await stageImage(draftId, photo));
+        for (const [index, photo] of accepted.entries()) {
+          const staged = await stageImage(draftId, photo);
+          running = [...running, staged];
+          setImages(running);
+          persist({ images: running });
+          setAdding({ done: index + 1, total: accepted.length });
+
+          // Fills in behind the photo that is already on screen.
+          void makeThumbnail(draftId, staged)
+            .then(thumbUri => {
+              if (!thumbUri) return;
+              setImages(current => {
+                const next = current.map(item => (item.id === staged.id ? { ...item, thumbUri } : item));
+                persist({ images: next });
+                return next;
+              });
+            })
+            .catch(() => undefined);
         }
-        const next = [...images, ...staged];
-        setImages(next);
-        persist({ images: next });
+
         if (picked.length > accepted.length) {
-          setError(`Only ${LIMITS.maxImages} photos fit in one report, so ${picked.length - accepted.length} were left out.`);
+          setError(
+            `Only ${LIMITS.maxImages} photos fit in one report, so ${picked.length - accepted.length} were left out.`,
+          );
         }
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'That photo could not be added.');
       } finally {
-        setAdding(false);
+        setAdding(null);
       }
     },
-    [draftId, images, persist, stageImage],
+    [draftId, images, makeThumbnail, persist, stageImage],
   );
 
   const handleOutcome = useCallback(
-    async (run: () => Promise<ReturnType<typeof takePhoto> extends Promise<infer T> ? T : never>) => {
-      const outcome = await run();
-      if (outcome.kind === 'picked') await addImages(outcome.images);
-      else if (outcome.kind === 'failed') setError(outcome.message);
+    async (run: () => Promise<PickerOutcome>) => {
+      // Every path out of the picker ends somewhere visible. A rejected
+      // promise here used to vanish: the sheet closed, no photo appeared, and
+      // nothing said why. That is exactly the silent failure the brief warns
+      // about, so the catch is not defensive padding -- it is the design.
+      try {
+        const outcome = await run();
+        logger.info(`picker: ${outcome.kind}${outcome.kind === 'picked' ? ` (${outcome.images.length})` : ''}`);
+        if (outcome.kind === 'picked') {
+          if (outcome.images.length === 0) setError('No photos came back from the picker. Please try again.');
+          else await addImages(outcome.images);
+        } else if (outcome.kind === 'failed') {
+          setError(outcome.message);
+        }
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        logger.error(`picker threw: ${message}`);
+        setError(`The photo picker failed: ${message}`);
+      }
     },
     [addImages],
   );
@@ -151,6 +198,7 @@ export function ComposeScreen({ navigation }: { navigation: { goBack: () => void
   }, [draftId, navigation, queue]);
 
   const canSubmit = description.trim().length > 0 && images.length >= LIMITS.minImages && !submitting && !adding;
+  const addingLabel = adding ? `Adding photo ${Math.min(adding.done + 1, adding.total)} of ${adding.total}` : null;
   const blocked = cameraBlocked || libraryBlocked;
 
   return (
@@ -186,6 +234,7 @@ export function ComposeScreen({ navigation }: { navigation: { goBack: () => void
         <View style={styles.photosHeader}>
           <SectionLabel>
             Photos · {images.length} of {LIMITS.maxImages}
+            {addingLabel ? ` · ${addingLabel}` : ''}
           </SectionLabel>
         </View>
 
@@ -196,7 +245,10 @@ export function ComposeScreen({ navigation }: { navigation: { goBack: () => void
                 {image.thumbUri ? (
                   <Image source={{ uri: image.thumbUri }} style={[styles.thumb, { borderColor: palette.line }]} />
                 ) : (
-                  <View style={[styles.thumb, { borderColor: palette.line, backgroundColor: palette.surfaceAlt }]} />
+                  <View
+                    style={[styles.thumb, styles.thumbPending, { borderColor: palette.line, backgroundColor: palette.surfaceAlt }]}>
+                    <Text style={[styles.thumbPendingText, { color: palette.textFaint }]}>saved</Text>
+                  </View>
                 )}
                 <Text style={[styles.thumbMeta, { color: palette.textFaint }]}>{formatBytes(image.source.bytes)}</Text>
                 <Pressable
@@ -224,15 +276,15 @@ export function ComposeScreen({ navigation }: { navigation: { goBack: () => void
             label="Take photo"
             variant="secondary"
             style={styles.action}
-            disabled={remaining === 0 || adding}
-            busy={adding}
+            disabled={remaining === 0 || adding !== null}
+            busy={adding !== null}
             onPress={() => void handleOutcome(takePhoto)}
           />
           <Button
             label="Choose photos"
             variant="secondary"
             style={styles.action}
-            disabled={remaining === 0 || adding}
+            disabled={remaining === 0 || adding !== null}
             onPress={() => void handleOutcome(() => pickFromLibrary(remaining))}
           />
         </Row>
@@ -298,6 +350,8 @@ const styles = StyleSheet.create({
   removeGlyph: { color: '#FFFFFF', fontSize: 16, fontWeight: '700', marginTop: -2 },
   placeholder: { paddingVertical: spacing.xl },
   centered: { textAlign: 'center' },
+  thumbPending: { alignItems: 'center', justifyContent: 'center' },
+  thumbPendingText: { fontSize: 11, fontWeight: '600' },
   actions: { gap: spacing.md },
   action: { flex: 1 },
   notice: { gap: spacing.sm },

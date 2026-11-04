@@ -56,14 +56,17 @@ app.use((req, res, next) => {
         status: res.statusCode,
       });
     });
-    req.on('close', () => {
-      if (!res.writableEnded) {
-        chaos.note({
-          kind: 'aborted',
-          message: `${req.method} ${req.path} -> no response (${Date.now() - started}ms)${res.locals.note ? ` · ${res.locals.note}` : ''}`,
-          status: 0,
-        });
-      }
+    // Listen on the RESPONSE, not the request. The request stream closes as
+    // soon as the body is consumed, which is before the response is written,
+    // so checking there reported "no response" for every successful request.
+    // res.writableFinished is only true once the response is genuinely out.
+    res.on('close', () => {
+      if (res.writableFinished) return;
+      chaos.note({
+        kind: 'aborted',
+        message: `${req.method} ${req.path} -> no response (${Date.now() - started}ms)${res.locals.note ? ` · ${res.locals.note}` : ''}`,
+        status: 0,
+      });
     });
   }
   next();
