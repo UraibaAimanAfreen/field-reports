@@ -235,6 +235,21 @@ and again in the confirmation:
 The middle one names the number of unsent reports in its confirmation, because
 that is the number the user needs in order to decide.
 
+### Permission is asked at the moment of use
+
+Not at mount, and not remembered in a ref. The brief tests refusing camera and
+gallery access and then granting it later from system Settings *without
+restarting the app* — and a decision captured once at startup is precisely what
+fails that test.
+
+So every attempt asks, and an `AppState` listener re-checks on return to the
+foreground: the "camera access is off" notice clears itself the moment it stops
+being true, rather than lying until the next tap. Where a permission cannot be
+probed — the gallery has no single one that holds across Android versions — the
+notice is cleared and the next attempt is the test. Only `NEVER_ASK_AGAIN` gets
+a button into Settings, because it is the only case where asking again does
+nothing.
+
 ### One place decides every status word
 
 "Saved" and "uploaded" are different facts and must never share a sentence.
@@ -274,7 +289,7 @@ server/          the fail-on-demand backend and its control panel
 ## Checks
 
 ```bash
-npm run verify     # typecheck (app + harness), lint, 53 tests
+npm run verify     # typecheck (app + harness), lint, 54 tests
 npm test
 npm run harness -- --gauntlet
 ```
